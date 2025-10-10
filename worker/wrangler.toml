@@ -1,4 +1,4 @@
-name = "sing-box-worker"
+name = "sbsm-worker"
 main = "src/index.ts"
 compatibility_date = "2024-05-12"
 
@@ -7,3 +7,8 @@ binding = "DB"
 database_name = "sing_box"
 database_id = "YOUR_D1_DATABASE_ID"
 migrations_dir = "../migrations"
+
+[vars]
+ADMIN_USERNAME = "admin"
+# SHA-256 hash of your admin password in hex (e.g., echo -n 'password' | shasum -a 256)
+ADMIN_PASSWORD_HASH = "REPLACE_WITH_SHA256_HASH"

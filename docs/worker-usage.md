@@ -1,18 +1,28 @@
-# Worker Usage
+# SBSM Usage
 
 ## Prerequisites
 
-- Install [Wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npm install` inside `worker/` sets it up locally).
-- Create a Cloudflare D1 database and note its `database_id`.
-- Update `worker/wrangler.toml` with the real `database_id`.
+- Install [Wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npm install` inside `worker/`).
+- Create a Cloudflare D1 database and note the `database_id`.
+- Edit `worker/wrangler.toml`:
+  - Set `database_id` under `[[d1_databases]]`.
+  - Provide `ADMIN_USERNAME` (plain text) and `ADMIN_PASSWORD_HASH` (SHA-256 hex of your admin password).
+
+To hash a password locally:
+
+```sh
+echo -n 'your-password' | shasum -a 256
+```
+
+Use the resulting hex string (without the trailing `-`).
 
 ## Local Development
 
 ```sh
 cd worker
 npm install
-npm run migrate           # Apply SQL schema in migrations/0001_init.sql
-npm run dev -- --local    # Start a local Worker with a local D1 database
+npm run migrate           # apply migrations/0001_init.sql to local D1
+npm run dev -- --local    # start the SBSM dev server with local bindings
 ```
 
 ## Deploy
@@ -22,69 +32,89 @@ cd worker
 npm run deploy
 ```
 
+## Authentication
+
+- Administrative endpoints require HTTP Basic Auth. Set `Authorization: Basic <base64("username:password")>`.
+- `/api/config` accepts either Basic Auth or a valid `share` token when sharing is enabled for the requested config.
+
 ## API Summary
 
-- `POST /api/users` (admin) – create a user; returns generated UUID `apiKey`.
-- `GET /api/users` (admin) – list users. Add `?with_keys=1` to include API keys.
-- `POST /api/links` – add a VPN link for the authenticated user (admins may pass `userId`).
-- `GET /api/links` – list stored links. Admins can filter with `?user_id=<uuid>`.
-- `DELETE /api/links/:id` – remove a stored link (admins can delete any).
-- `POST /api/groups` – create a VPN group (optionally with initial `linkIds`).
-- `GET /api/groups` – list groups (admins can filter with `?user_id=<uuid>`).
-- `POST /api/groups/:id/links` – attach links to the group; send `{ linkIds: [] }`.
+- `POST /api/links` – create a VPN link (`{ url, name? }`).
+- `GET /api/links` – list links.
+- `DELETE /api/links/:id` – delete a link.
+- `POST /api/groups` – create a group (`{ name, description?, linkIds? }`).
+- `GET /api/groups` – list groups.
+- `POST /api/groups/:id/links` – attach links (`{ linkIds: [] }`).
 - `DELETE /api/groups/:id/links/:linkId` – detach a link.
-- `POST /api/base-configs` – create a reusable sing-box base template (`configJson`, `selectorTags`).
-- `GET /api/base-configs` – list base templates (admins can filter with `?user_id=<uuid>`).
-- `PUT /api/base-configs/:id` – update base template metadata/content.
-- `DELETE /api/base-configs/:id` – delete a base template (fails if configs still reference it).
-- `POST /api/configs` – create a config instance referencing `baseConfigId`, override `selectorTags`, attach `groupIds`.
-- `GET /api/configs` – list config instances (admins can filter by `?user_id=<uuid>`).
-- `POST /api/configs/:id/groups` – attach groups or update ordering (body: `{ groupId, position? }`).
-- `DELETE /api/configs/:id/groups/:groupId` – detach a group from the config.
-- `GET /api/config?config_id=<uuid>` – render a config by merging its base template with attached groups.
+- `POST /api/base-configs` – store a base template (`{ name, description?, configJson, selectorTags? }`).
+- `GET /api/base-configs` – list base templates.
+- `PUT /api/base-configs/:id` – update template fields.
+- `DELETE /api/base-configs/:id` – remove a base template (fails if configs reference it).
+- `POST /api/configs` – create a config instance (`{ name, baseConfigId, description?, selectorTags?, groupIds?, shareEnabled?, shareToken? }`).
+- `GET /api/configs` – list configs (includes share status/token for admin use).
+- `POST /api/configs/:id/groups` – attach groups (`{ groupId, position? }`).
+- `DELETE /api/configs/:id/groups/:groupId` – remove a group attachment.
+- `POST /api/configs/:id/share` – enable/disable sharing or regenerate tokens (`{ shareEnabled?, regenerate?, shareToken? }`).
+- `GET /api/config?config_id=<uuid>[&share=<token>]` – render the final sing-box config.
 
-Authenticate every request with `Authorization: Bearer <apiKey>`.
+## Example Workflow
 
-Authenticate every request with `Authorization: Bearer <apiKey>`.
+1. **Create a base template**
 
-### Creating a Base Template
+   ```http
+   POST /api/base-configs
+   Authorization: Basic <...>
+   Content-Type: application/json
 
-```json
-POST /api/base-configs
-{
-  "name": "singbox-default",
-  "configJson": { "...": "full sing-box config skeleton" },
-  "selectorTags": ["TCP代理", "UDP代理", "自动选择", "OpenAI", "YouTube", "漏网之鱼"]
-}
-```
+   {
+     "name": "default-singbox",
+     "configJson": { "log": {}, "dns": {}, "outbounds": [], "route": {} },
+     "selectorTags": ["TCP代理", "UDP代理", "自动选择"]
+   }
+   ```
 
-### Creating a Config Instance
+2. **Create links, groups, and configs**
 
-```json
-POST /api/configs
-{
-  "name": "desktop-template",
-  "baseConfigId": "<base-config-uuid>",
-  "selectorTags": [],                 // optional override; empty inherits base
-  "groupIds": ["<group-uuid>", "<another-group-uuid>"]
-}
-```
+   - Add links with `POST /api/links`.
+   - Create a group referencing those link IDs (`POST /api/groups`).
+   - Create a config referencing the base template and group IDs.
 
-When you later call `GET /api/config?config_id=<uuid>`, the worker:
+   ```http
+   POST /api/configs
+   Authorization: Basic <...>
+   Content-Type: application/json
 
-1. Loads the base template (`configJson`, `selectorTags`) and applies config-level overrides.
-2. Pulls every VPN link in the attached groups (respecting ordering).
-3. Converts them to sing-box outbounds and appends them.
-4. Extends each selector in the chosen tag list with the new outbound tags (deduplicated).
+   {
+     "name": "friends-config",
+     "baseConfigId": "<base-config-uuid>",
+     "groupIds": ["<group-uuid>"],
+     "shareEnabled": true
+   }
+   ```
 
+   The response includes `share_token` when sharing is enabled. Share the URL
+   `https://<worker-domain>/api/config?config_id=<uuid>&share=<token>` with trusted friends.
+
+3. **Rotate a share token**
+
+   ```http
+   POST /api/configs/<config-uuid>/share
+   Authorization: Basic <...>
+   Content-Type: application/json
+
+   {
+     "shareEnabled": true,
+     "regenerate": true
+   }
+   ```
+
+   The response returns the new token; previous URLs stop working immediately.
 
 ## Supported Link Types
-
-The converter currently understands:
 
 - `vless://`
 - `vmess://`
 - `trojan://`
 - `ss://`
 
-Unsupported links are skipped (logged server-side) and simply omitted from the output. Extend `worker/src/converter.ts` to add more protocols if needed.
+Unsupported links are logged and skipped. Extend `worker/src/converter.ts` if you need additional protocols.

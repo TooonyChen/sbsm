@@ -1,16 +1,7 @@
 -- Initial schema for sing-box worker
 
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  api_key TEXT NOT NULL UNIQUE,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-);
-
 CREATE TABLE IF NOT EXISTS vpn_links (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   raw_link TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
@@ -19,7 +10,6 @@ CREATE TABLE IF NOT EXISTS vpn_links (
 
 CREATE TABLE IF NOT EXISTS vpn_groups (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
@@ -34,7 +24,6 @@ CREATE TABLE IF NOT EXISTS vpn_group_links (
 
 CREATE TABLE IF NOT EXISTS sb_base_configs (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   config_json TEXT NOT NULL,
@@ -45,11 +34,12 @@ CREATE TABLE IF NOT EXISTS sb_base_configs (
 
 CREATE TABLE IF NOT EXISTS sb_configs (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   base_config_id TEXT NOT NULL REFERENCES sb_base_configs(id) ON DELETE RESTRICT,
   name TEXT NOT NULL,
   description TEXT,
   selector_tags TEXT NOT NULL DEFAULT '[]',
+  share_token TEXT,
+  share_enabled INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
@@ -61,8 +51,4 @@ CREATE TABLE IF NOT EXISTS sb_config_groups (
   PRIMARY KEY (config_id, group_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_vpn_links_user_id ON vpn_links(user_id);
-CREATE INDEX IF NOT EXISTS idx_vpn_groups_user_id ON vpn_groups(user_id);
-CREATE INDEX IF NOT EXISTS idx_sb_base_configs_user_id ON sb_base_configs(user_id);
-CREATE INDEX IF NOT EXISTS idx_sb_configs_user_id ON sb_configs(user_id);
 CREATE INDEX IF NOT EXISTS idx_sb_config_groups_position ON sb_config_groups(config_id, position);

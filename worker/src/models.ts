@@ -1,16 +1,5 @@
-export type Role = 'admin' | 'user';
-
-export interface UserRow {
-  id: string;
-  username: string;
-  api_key: string;
-  role: Role;
-  created_at: number;
-}
-
 export interface VpnLinkRow {
   id: string;
-  user_id: string;
   name: string;
   raw_link: string;
   created_at: number;
@@ -19,7 +8,6 @@ export interface VpnLinkRow {
 
 export interface VpnGroupRow {
   id: string;
-  user_id: string;
   name: string;
   description: string | null;
   created_at: number;
@@ -28,7 +16,6 @@ export interface VpnGroupRow {
 
 export interface BaseConfigRow {
   id: string;
-  user_id: string;
   name: string;
   description: string | null;
   config_json: string;
@@ -39,11 +26,12 @@ export interface BaseConfigRow {
 
 export interface SbConfigRow {
   id: string;
-  user_id: string;
   base_config_id: string;
   name: string;
   description: string | null;
   selector_tags: string;
+  share_token: string | null;
+  share_enabled: number;
   created_at: number;
   updated_at: number;
 }
