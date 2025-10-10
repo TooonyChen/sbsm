@@ -1,0 +1,17 @@
+{
+  "name": "sing-box-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply sing_box",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js}\""
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240419.0",
+    "prettier": "^3.2.5",
+    "wrangler": "^3.54.0"
+  }
+}

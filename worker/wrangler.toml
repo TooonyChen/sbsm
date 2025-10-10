@@ -1,0 +1,9 @@
+name = "sing-box-worker"
+main = "src/index.ts"
+compatibility_date = "2024-05-12"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sing_box"
+database_id = "YOUR_D1_DATABASE_ID"
+migrations_dir = "../migrations"
