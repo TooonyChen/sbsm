@@ -10,10 +10,6 @@ yarn-error.log*
 # Wrangler state
 .wrangler/
 **/.wrangler/
-
-# Wrangler state
-.wrangler/
-**/.wrangler/
 worker/wrangler.toml
 
 # Local runtime artifacts
