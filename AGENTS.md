@@ -1,34 +1,33 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `worker/src/index.ts` wires Cloudflare Worker request handling; feature handlers live under `worker/src/routes` (e.g., `configs.ts`, `groups.ts`, `links.ts`) and call query helpers in `worker/src/db`.
-- Shared utilities (`converter.ts`, `template.ts`, auth helpers in `worker/src/lib`) and type models (`worker/src/models.ts`) support the route layer.
-- Database migrations reside in `migrations/0001_init.sql`; design notes and usage walkthroughs are in `docs/`.
-- Keep new assets, diagrams, or supporting files inside `docs/` unless they ship with the Worker runtime.
+- `worker/src/index.ts` registers Cloudflare Worker routing; feature handlers live under `worker/src/routes/*` and call helpers in `worker/src/db`.
+- Shared utilities (e.g., `worker/src/lib/*`, `worker/src/converter.ts`) and types (`worker/src/models.ts`) support the worker layer.
+- The Next.js frontend sits in `frontend/src`, with layouts under `frontend/src/app` and UI primitives in `frontend/src/components`.
+- Database migrations reside in `migrations/` (e.g., `0001_init.sql`); project notes and diagrams belong in `docs/`.
 
 ## Build, Test, and Development Commands
-- `npm install` (inside `worker/`) sets up Wrangler and type tooling.
-- `npm run dev` runs `wrangler dev` against the local D1 instance (requires `wrangler.toml` credentials and migrations applied).
-- `npm run migrate` applies `migrations/0001_init.sql` to the `sing_box` D1 database.
-- `npm run deploy` deploys the Worker to Cloudflare using Wrangler environment settings.
-- `npm run format` runs Prettier across TypeScript sources.
+- `cd worker && npm install` sets up Wrangler tooling.
+- `npm run dev` in `worker/` runs `wrangler dev` against the local D1 instance (ensure credentials in `wrangler.toml`).
+- `npm run migrate` applies SQL migrations to the `sing_box` D1 database.
+- `npm run deploy` publishes the Worker using the configured Cloudflare environment.
+- `cd frontend && npm install && npm run dev` starts the dashboard locally; `npm run format` applies Prettier.
 
 ## Coding Style & Naming Conventions
-- TypeScript only, targeting ES2022 with strict compiler flags (`worker/tsconfig.json`); prefer async/await and explicit return types for exported functions.
-- Use PascalCase for classes/types, camelCase for functions and variables, screaming snake case for environment-bound constants.
-- Run Prettier before opening a PR; keep imports sorted logically (platform, external, internal).
-- Authentication secrets (`ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`) must be updated in `worker/wrangler.toml` before local runs or deploys.
+- TypeScript (ES2022, strict mode). Use async/await, explicit return types for exports, and camelCase/PascalCase per symbol type.
+- Keep imports grouped: platform APIs, external libs, then internal modules.
+- Run Prettier (`npm run format`) before submitting changes; prefer ASCII unless the file already uses Unicode.
 
 ## Testing Guidelines
-- No automated test suite exists yet; replicate share-token and Basic Auth flows manually via `wrangler dev` plus HTTP clients (e.g., `curl` with `-u user:pass`).
-- When adding tests, prefer Worker-compatible harnesses or integration scripts under a future `worker/tests/` directory and document the run command in this guide.
-- Validate migrations by running `npm run migrate` in a fresh D1 instance before merging schema changes.
+- No automated suite yet; validate flows manually via `wrangler dev` plus HTTP clients (Basic Auth, share-token generation).
+- When adding tests, place Worker-compatible harnesses under `worker/tests/` and document the run command here.
+- Validate schema changes with `npm run migrate` against a fresh D1 instance.
 
 ## Commit & Pull Request Guidelines
-- Write commit messages in imperative present tense (`Add share token endpoint`); keep scope focused.
-- For pull requests, include: purpose summary, list of modified routes or DB tables, manual verification steps, and any backward-compatibility notes.
-- Link related design docs or issues when available; attach example API payloads or `curl` snippets for new endpoints.
+- Use imperative present-tense commit messages (`Add share token endpoint`); keep each commit focused.
+- PRs should include purpose, impacted routes/DB tables, manual verification steps, backward-compatibility notes, and relevant doc/issue links.
 
 ## Security & Configuration Tips
-- Regenerate `config.share_token` via the dedicated handler or `crypto.randomUUID()` helper whenever links are compromised; never expose admin credentials in shared configs.
-- Protect Wrangler secrets by using `wrangler secret put` in CI/CD; avoid committing real D1 `database_id` values or password hashes to source control.
+- Update `ADMIN_USERNAME` and `ADMIN_PASSWORD_HASH` in `worker/wrangler.toml` before local runs; treat them as secrets.
+- Regenerate compromised `config.share_token` values via the dedicated handler or `crypto.randomUUID()`.
+- Never commit real Cloudflare IDs, passwords, or production secrets; use `wrangler secret put` for sensitive values.
