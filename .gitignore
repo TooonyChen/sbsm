@@ -1,0 +1,32 @@
+.DS_Store
+
+# Node tooling
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Wrangler state
+.wrangler/
+**/.wrangler/
+
+# Wrangler state
+.wrangler/
+**/.wrangler/
+wrangler.toml
+
+# Local runtime artifacts
+run.out
+run.pid
+cache.db
+*.sqlite
+
+# Environment & secrets
+.env
+.env.*
+
+
+# Build caches
+dist/
+.cache/
