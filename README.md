@@ -4,6 +4,12 @@
 
 ### <p align="center"><b>Sing-box Subscription Manager</b></p>
 
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare Workers"/>
+  </a>
+</p>
+
 ---
 
 **SBSM** is a lightweight admin console and Cloudflare Worker based for managing [Sing-box](https://github.com/SagerNet/sing-box) subscription links, groups, and share tokens.
