@@ -10,6 +10,19 @@ export interface VpnGroupRow {
   id: string;
   name: string;
   description: string | null;
+  type: 'manual' | 'subscription';
+  created_at: number;
+  updated_at: number;
+}
+
+export interface VpnGroupSubscriptionRow {
+  group_id: string;
+  subscription_url: string;
+  cached_payload: string | null;
+  cached_node_count: number;
+  last_fetched_at: number | null;
+  last_error: string | null;
+  exclude_keywords: string;
   created_at: number;
   updated_at: number;
 }

@@ -194,8 +194,12 @@ function parseShadowsocks(raw: string, name: string): ParsedSSLink {
   const atIndex = credentials.lastIndexOf('@');
   if (atIndex === -1) throw new Error('Invalid shadowsocks credential format');
 
-  const methodAndPassword = credentials.slice(0, atIndex);
+  let methodAndPassword = credentials.slice(0, atIndex);
   const serverAndPort = credentials.slice(atIndex + 1);
+
+  if (!methodAndPassword.includes(':')) {
+    methodAndPassword = decodeBase64String(methodAndPassword);
+  }
 
   const [method, password] = methodAndPassword.split(':', 2);
   const [server, portStr] = serverAndPort.split(':', 2);

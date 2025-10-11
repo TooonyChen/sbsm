@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS vpn_groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
+  type TEXT NOT NULL DEFAULT 'manual' CHECK (type IN ('manual', 'subscription')),
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
@@ -21,6 +22,27 @@ CREATE TABLE IF NOT EXISTS vpn_group_links (
   link_id TEXT NOT NULL REFERENCES vpn_links(id) ON DELETE CASCADE,
   PRIMARY KEY (group_id, link_id)
 );
+
+CREATE TABLE IF NOT EXISTS vpn_group_subscriptions (
+  group_id TEXT PRIMARY KEY REFERENCES vpn_groups(id) ON DELETE CASCADE,
+  subscription_url TEXT NOT NULL,
+  cached_payload TEXT,
+  cached_node_count INTEGER NOT NULL DEFAULT 0,
+  last_fetched_at INTEGER,
+  last_error TEXT,
+  exclude_keywords TEXT NOT NULL DEFAULT '["流量","套餐","到期","剩余"]',
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_vpn_group_subscriptions_updated_at
+AFTER UPDATE ON vpn_group_subscriptions
+FOR EACH ROW
+BEGIN
+  UPDATE vpn_group_subscriptions
+     SET updated_at = (strftime('%s','now'))
+   WHERE group_id = NEW.group_id;
+END;
 
 CREATE TABLE IF NOT EXISTS sb_base_configs (
   id TEXT PRIMARY KEY,

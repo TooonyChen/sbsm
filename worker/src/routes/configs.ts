@@ -16,6 +16,7 @@ import {
 } from '../db/configs';
 import { convertLinksToOutbounds } from '../converter';
 import { authenticateBasic } from '../lib/auth';
+import { resolveSubscriptionLinks } from '../lib/subscription';
 
 async function handleCreateConfig(
   request: Request,
@@ -105,11 +106,13 @@ async function handleCreateConfig(
     {
       id: config.id,
       base_config_id: config.base_config_id,
+      base_config_name: baseConfigRow.name,
       name: config.name,
       description: config.description,
       selector_tags: selectorTags,
       share_enabled: shareEnabled,
       share_token: shareToken,
+      group_ids: groupIds,
       created_at: config.created_at,
       updated_at: config.updated_at,
     },
@@ -117,7 +120,19 @@ async function handleCreateConfig(
   );
 }
 
-function formatConfigRow(row: SbConfigRow & { base_config_name: string | null }) {
+function parseGroupIds(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((value) => (typeof value === 'string' ? value : '')).filter((value) => value.length > 0);
+  } catch (error) {
+    console.error('Failed to parse config group ids', error);
+    return [];
+  }
+}
+
+function formatConfigRow(row: SbConfigRow & { base_config_name: string | null; group_ids_json?: string | null }) {
   return {
     id: row.id,
     base_config_id: row.base_config_id,
@@ -127,6 +142,7 @@ function formatConfigRow(row: SbConfigRow & { base_config_name: string | null })
     selector_tags: parseSelectorTags(row.selector_tags),
     share_enabled: Boolean(row.share_enabled),
     share_token: row.share_token,
+    group_ids: parseGroupIds(row.group_ids_json),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -144,7 +160,7 @@ async function handleListConfigs(
   }
 
   const { results } = await env.DB.prepare<
-    SbConfigRow & { base_config_name: string | null }
+    SbConfigRow & { base_config_name: string | null; group_ids_json: string | null }
   >(
     `SELECT sc.id,
             sc.base_config_id,
@@ -155,12 +171,187 @@ async function handleListConfigs(
             sc.share_enabled,
             sc.created_at,
             sc.updated_at,
-            bc.name AS base_config_name
+            bc.name AS base_config_name,
+            (
+              SELECT json_group_array(sub.group_id)
+                FROM (
+                  SELECT group_id
+                    FROM sb_config_groups
+                   WHERE config_id = sc.id
+                   ORDER BY position ASC, group_id ASC
+                ) AS sub
+            ) AS group_ids_json
        FROM sb_configs sc
        LEFT JOIN sb_base_configs bc ON bc.id = sc.base_config_id
        ORDER BY sc.created_at DESC`,
   ).all();
   return jsonResponse(results.map(formatConfigRow));
+}
+
+async function handleUpdateConfig(
+  request: Request,
+  env: Env,
+  params: Record<string, string>,
+  _auth: AuthContext,
+): Promise<Response> {
+  const configId = params.id;
+  if (!configId) return errorResponse('Missing config id', 400);
+
+  const existing = await fetchConfigById(env, configId);
+  if (!existing) return errorResponse('Config not found', 404);
+
+  const body = await readJsonBody<{
+    name?: string;
+    description?: string | null;
+    baseConfigId?: string;
+    selectorTags?: string[];
+    groupIds?: string[];
+  }>(request);
+  if (!body) return errorResponse('Invalid JSON payload', 400);
+
+  const updates: string[] = [];
+  const bindings: unknown[] = [];
+  let baseConfigName: string | null = null;
+  let selectorTags = parseSelectorTags(existing.selector_tags);
+
+  if (body.name !== undefined) {
+    const newName = String(body.name).trim();
+    if (!newName) return errorResponse('`name` cannot be empty', 422);
+    updates.push('name = ?');
+    bindings.push(newName);
+  }
+
+  if (body.description !== undefined) {
+    updates.push('description = ?');
+    bindings.push(body.description === null ? null : String(body.description));
+  }
+
+  if (body.baseConfigId !== undefined) {
+    const baseConfigId = body.baseConfigId.trim();
+    if (!baseConfigId) return errorResponse('`baseConfigId` cannot be empty', 422);
+    const baseConfigRow = await fetchBaseConfigById(env, baseConfigId);
+    if (!baseConfigRow) return errorResponse('Base config not found', 404);
+    updates.push('base_config_id = ?');
+    bindings.push(baseConfigId);
+    baseConfigName = baseConfigRow.name;
+  }
+
+  if (body.selectorTags !== undefined) {
+    selectorTags = Array.isArray(body.selectorTags)
+      ? Array.from(
+          new Set(
+            body.selectorTags
+              .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+              .filter((tag) => tag.length > 0),
+          ),
+        )
+      : [];
+    updates.push('selector_tags = ?');
+    bindings.push(JSON.stringify(selectorTags));
+  }
+
+  if (updates.length > 0) {
+    updates.push("updated_at = strftime('%s','now')");
+    const statement = env.DB.prepare(`UPDATE sb_configs SET ${updates.join(', ')} WHERE id = ?`).bind(
+      ...bindings,
+      configId,
+    );
+    const result = await statement.run();
+    if (!result.success) {
+      console.error('Failed to update sb_configs', result.error);
+      return errorResponse('Failed to update config', 500);
+    }
+  }
+
+  let groupIds = body.groupIds;
+  if (body.groupIds !== undefined) {
+    groupIds = Array.isArray(body.groupIds)
+      ? Array.from(new Set(body.groupIds.filter((gid) => typeof gid === 'string' && gid.length > 0)))
+      : [];
+    const clear = await env.DB.prepare(`DELETE FROM sb_config_groups WHERE config_id = ?`).bind(configId).run();
+    if (!clear.success) {
+      console.error('Failed to clear sb_config_groups', clear.error);
+      return errorResponse('Failed to update groups', 500);
+    }
+    if (groupIds.length > 0) {
+      const groups = await fetchGroupsByIds(env, groupIds);
+      const foundIds = new Set(groups.map((group) => group.id));
+      const missing = groupIds.filter((gid) => !foundIds.has(gid));
+      if (missing.length > 0) return errorResponse('Some groupIds were not found', 404, { groupIds: missing });
+      const statements = groupIds.map((groupId, index) =>
+        env.DB.prepare(
+          `INSERT INTO sb_config_groups (config_id, group_id, position)
+           VALUES (?, ?, ?)`,
+        ).bind(configId, groupId, index),
+      );
+      await env.DB.batch(statements);
+    }
+  }
+
+  const updated = await env.DB.prepare<
+    SbConfigRow & { base_config_name: string | null; group_ids_json: string | null }
+  >(
+    `SELECT sc.id,
+            sc.base_config_id,
+            sc.name,
+            sc.description,
+            sc.selector_tags,
+            sc.share_token,
+            sc.share_enabled,
+            sc.created_at,
+            sc.updated_at,
+            bc.name AS base_config_name,
+            (
+              SELECT json_group_array(sub.group_id)
+                FROM (
+                  SELECT group_id
+                    FROM sb_config_groups
+                   WHERE config_id = sc.id
+                   ORDER BY position ASC, group_id ASC
+                ) AS sub
+            ) AS group_ids_json
+       FROM sb_configs sc
+       LEFT JOIN sb_base_configs bc ON bc.id = sc.base_config_id
+      WHERE sc.id = ?`,
+  )
+    .bind(configId)
+    .first();
+
+  if (!updated) return errorResponse('Failed to load config after update', 500);
+
+  return jsonResponse({
+    ...formatConfigRow(updated),
+    base_config_name: baseConfigName ?? updated.base_config_name,
+    selector_tags: selectorTags,
+    group_ids: groupIds !== undefined ? groupIds : parseGroupIds(updated.group_ids_json),
+  });
+}
+
+async function handleDeleteConfig(
+  _request: Request,
+  env: Env,
+  params: Record<string, string>,
+  _auth: AuthContext,
+): Promise<Response> {
+  const configId = params.id;
+  if (!configId) return errorResponse('Missing config id', 400);
+
+  const existing = await fetchConfigById(env, configId);
+  if (!existing) return errorResponse('Config not found', 404);
+
+  const deleteGroups = await env.DB.prepare(`DELETE FROM sb_config_groups WHERE config_id = ?`).bind(configId).run();
+  if (!deleteGroups.success) {
+    console.error('Failed to delete sb_config_groups', deleteGroups.error);
+    return errorResponse('Failed to delete config', 500);
+  }
+
+  const deleteConfig = await env.DB.prepare(`DELETE FROM sb_configs WHERE id = ?`).bind(configId).run();
+  if (!deleteConfig.success) {
+    console.error('Failed to delete sb_configs', deleteConfig.error);
+    return errorResponse('Failed to delete config', 500);
+  }
+
+  return jsonResponse({ success: true });
 }
 
 async function handleAttachConfigGroup(
@@ -352,9 +543,14 @@ async function handleGetConfig(
   const allLinks: VpnLinkRow[] = [];
   for (const row of groupRows) {
     const group = await fetchGroupById(env, row.group_id);
-    if (!group) {
+    if (!group) continue;
+
+    if (group.type === 'subscription') {
+      const { links } = await resolveSubscriptionLinks(env, group.id);
+      allLinks.push(...links);
       continue;
     }
+
     const { results: links } = await env.DB.prepare(
       `SELECT l.id, l.name, l.raw_link, l.created_at, l.updated_at
          FROM vpn_links l
@@ -388,6 +584,11 @@ export const configRoutes: RouteDefinition[] = [
     handler: requireAuth(handleListConfigs),
   },
   {
+    method: 'PUT',
+    pattern: new URLPattern({ pathname: '/api/configs/:id' }),
+    handler: requireAuth(handleUpdateConfig),
+  },
+  {
     method: 'POST',
     pattern: new URLPattern({ pathname: '/api/configs/:id/groups' }),
     handler: requireAuth(handleAttachConfigGroup),
@@ -401,6 +602,11 @@ export const configRoutes: RouteDefinition[] = [
     method: 'POST',
     pattern: new URLPattern({ pathname: '/api/configs/:id/share' }),
     handler: requireAuth(handleUpdateConfigShare),
+  },
+  {
+    method: 'DELETE',
+    pattern: new URLPattern({ pathname: '/api/configs/:id' }),
+    handler: requireAuth(handleDeleteConfig),
   },
   {
     method: 'GET',

@@ -20,7 +20,9 @@ async function handleCreateLink(
   if (!rawLink) return errorResponse('`url` is required', 422);
 
   const id = crypto.randomUUID();
-  const name = (body.name ?? deriveNameFromLink(rawLink)).trim();
+  const providedName = body.name?.trim();
+  const name =
+    providedName && providedName.length > 0 ? providedName : deriveNameFromLink(rawLink).trim();
 
   const insert = await env.DB.prepare(
     `INSERT INTO vpn_links (id, name, raw_link) VALUES (?, ?, ?)`,
@@ -96,6 +98,65 @@ async function handleDeleteLink(
   return jsonResponse({ success: true });
 }
 
+async function handleUpdateLink(
+  request: Request,
+  env: Env,
+  params: Record<string, string>,
+  _auth: AuthContext,
+): Promise<Response> {
+  const linkId = params.id;
+  if (!linkId) return errorResponse('Missing link id', 400);
+
+  const existing = await env.DB.prepare<VpnLinkRow>(
+    `SELECT id, name, raw_link, created_at, updated_at FROM vpn_links WHERE id = ?`,
+  )
+    .bind(linkId)
+    .first();
+  if (!existing) return errorResponse('Link not found', 404);
+
+  const body = await readJsonBody<{
+    url?: string;
+    name?: string | null;
+  }>(request);
+  if (!body) return errorResponse('Invalid JSON payload', 400);
+
+  const rawLink = body.url !== undefined ? body.url.trim() : existing.raw_link;
+  if (!rawLink) return errorResponse('`url` is required', 422);
+
+  let name: string;
+  if (body.name !== undefined) {
+    const trimmed = body.name?.trim() ?? '';
+    if (trimmed.length === 0) {
+      name = deriveNameFromLink(rawLink).trim();
+    } else {
+      name = trimmed;
+    }
+  } else {
+    name = existing.name.trim().length > 0 ? existing.name : deriveNameFromLink(rawLink).trim();
+  }
+
+  const update = await env.DB.prepare(
+    `UPDATE vpn_links SET name = ?, raw_link = ?, updated_at = strftime('%s','now') WHERE id = ?`,
+  )
+    .bind(name, rawLink, linkId)
+    .run();
+
+  if (!update.success) {
+    console.error('Failed to update vpn_link', update.error);
+    return errorResponse('Failed to update link', 500);
+  }
+
+  const updated = await env.DB.prepare<VpnLinkRow>(
+    `SELECT id, name, raw_link, created_at, updated_at FROM vpn_links WHERE id = ?`,
+  )
+    .bind(linkId)
+    .first();
+
+  if (!updated) return errorResponse('Link not found after update', 500);
+
+  return jsonResponse(updated);
+}
+
 export const linkRoutes: RouteDefinition[] = [
   {
     method: 'POST',
@@ -111,5 +172,10 @@ export const linkRoutes: RouteDefinition[] = [
     method: 'DELETE',
     pattern: new URLPattern({ pathname: '/api/links/:id' }),
     handler: requireAuth(handleDeleteLink),
+  },
+  {
+    method: 'PUT',
+    pattern: new URLPattern({ pathname: '/api/links/:id' }),
+    handler: requireAuth(handleUpdateLink),
   },
 ];
