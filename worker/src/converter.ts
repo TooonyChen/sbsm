@@ -250,7 +250,7 @@ function vlessToOutbound(parsed: ParsedVlessLink, tag: string): Outbound {
     params.get('alpn')?.split(',').map((s) => s.trim()).filter(Boolean) ?? undefined;
   const pbk = params.get('pbk') ?? params.get('publicKey') ?? undefined;
   const sid = params.get('sid') ?? params.get('shortId') ?? undefined;
-  const spx = params.get('spx') ?? undefined;
+  const spx = normalizeSpiderX(params.get('spx'));
   const packetEncoding =
     params.get('packetEncoding') ?? params.get('packet_encoding') ?? params.get('packetencoding') ?? undefined;
 
@@ -497,6 +497,13 @@ function dropUndefined<T extends Record<string, unknown>>(input: T): T {
     }
   }
   return result as T;
+}
+
+function normalizeSpiderX(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '/') return undefined;
+  return trimmed;
 }
 
 function decodeBase64String(data: string): string {
