@@ -20,6 +20,7 @@ export function parseBaseConfig(raw: string): SingBoxConfig {
     const parsed = JSON.parse(raw) as SingBoxConfig;
     if (parsed && typeof parsed === 'object') {
       if (!Array.isArray(parsed.outbounds)) parsed.outbounds = [];
+      stripUnsupportedOutboundFields(parsed);
       return parsed;
     }
   } catch (error) {
@@ -27,6 +28,7 @@ export function parseBaseConfig(raw: string): SingBoxConfig {
   }
   const fallback = cloneTemplate();
   fallback.outbounds = [];
+  stripUnsupportedOutboundFields(fallback);
   return fallback;
 }
 
@@ -39,9 +41,12 @@ export function normalizeConfigInput(input: unknown): SingBoxConfig {
     if (!cloned.outbounds || !Array.isArray(cloned.outbounds)) {
       cloned.outbounds = [];
     }
+    stripUnsupportedOutboundFields(cloned);
     return cloned;
   }
-  return cloneTemplate();
+  const fallback = cloneTemplate();
+  stripUnsupportedOutboundFields(fallback);
+  return fallback;
 }
 
 export function stringifyConfig(config: SingBoxConfig): string {
@@ -86,5 +91,13 @@ export function appendUniqueStrings(target: string[], values: string[]): void {
       target.push(value);
       seen.add(value);
     }
+  }
+}
+
+export function stripUnsupportedOutboundFields(config: SingBoxConfig): void {
+  if (!Array.isArray(config.outbounds)) return;
+  for (const outbound of config.outbounds) {
+    if (!outbound || typeof outbound !== 'object') continue;
+    delete (outbound as Record<string, unknown>)['domain_resolver'];
   }
 }

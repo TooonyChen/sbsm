@@ -4,6 +4,7 @@ import {
   mergeGeneratedOutbounds,
   parseBaseConfig,
   parseSelectorTags,
+  stripUnsupportedOutboundFields,
 } from '../lib/config';
 import type { AuthContext, Env, RouteDefinition } from '../lib/context';
 import type { SbConfigRow, VpnLinkRow } from '../models';
@@ -569,6 +570,7 @@ async function handleGetConfig(
 
   const outbounds = await convertLinksToOutbounds(allLinks);
   mergeGeneratedOutbounds(renderConfig, outbounds, selectorTags);
+  stripUnsupportedOutboundFields(renderConfig);
   return jsonResponse(renderConfig);
 }
 

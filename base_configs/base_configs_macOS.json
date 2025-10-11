@@ -23,26 +23,24 @@
       "servers": [
         {
           "tag": "dns_direct",
-          "address": "119.29.29.29",
-          "address_strategy": "ipv4_only",
-          "strategy": "ipv4_only",
+          "type": "udp",
+          "server": "119.29.29.29",
           "detour": "直连"
         },
         {
           "tag": "dns_proxy",
-          "address": "8.8.4.4",
-          "address_strategy": "ipv4_only",
-          "strategy": "ipv4_only",
+          "type": "udp",
+          "server": "8.8.4.4",
           "detour": "TCP代理"
         }
       ],
       "rules": [
         {
-          "clash_mode": "Direct",
+          "clash_mode": "direct",
           "server": "dns_direct"
         },
         {
-          "clash_mode": "Global",
+          "clash_mode": "global",
           "server": "dns_proxy"
         },
         {
