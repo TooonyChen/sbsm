@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NAV_SECTIONS } from "@/lib/navigation";
 import { getAuthCookies } from "@/lib/auth-client";
+import { ModeToggle } from "@/components/mode-toggle";
 import {
   Sidebar,
   SidebarContent,
@@ -85,16 +86,19 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="px-4 pb-4">
-        <a
-          href="https://github.com/TooonyChen/sbsm"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Open the SBSM GitHub repository"
-        >
-          <Github className="size-5" strokeWidth={1.75} />
-        </a>
+      <SidebarFooter className="px-4 pb-4 pt-2">
+        <div className="flex items-center justify-between gap-2">
+          <ModeToggle />
+          <a
+            href="https://github.com/TooonyChen/sbsm"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Open the SBSM GitHub repository"
+          >
+            <Github className="size-5" strokeWidth={1.75} />
+          </a>
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

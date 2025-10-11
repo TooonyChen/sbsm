@@ -11,7 +11,7 @@ SBSM delivers a lightweight admin console and Cloudflare Worker that manage Sing
    npm install
    cp wrangler.toml.example wrangler.toml   # fill in account_id, d1 database_id/bindings
    # set up wrangler.toml
-   npm run migrate                          # applies migrations to the bound D1 database
+   npm run migrate --remote                 # applies migrations to the bound D1 database
    ```
 3. Deploy to Cloudflare:
    ```bash

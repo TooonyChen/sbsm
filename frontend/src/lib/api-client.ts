@@ -19,7 +19,7 @@ function buildAuthorizationHeader(username: string, password: string): string {
 
 export async function apiFetch<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   if (!hasAuthCookies()) {
-    throw Object.assign(new Error('Missing authentication cookies'), { status: 401 });
+    throw Object.assign(new Error('Authentication details missing — please configure them in Settings.'), { status: 401 });
   }
 
   const { host, username, password } = getAuthCookies();
