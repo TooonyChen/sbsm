@@ -15,7 +15,7 @@
       },
       "cache_file": {
         "enabled": true,
-        "path": "/Users/okcomputer/codebase/sing-box/cache.db",
+        "path": "/etc/sing-box/cache.db",
         "store_fakeip": false
       }
     },
@@ -24,8 +24,7 @@
         {
           "tag": "dns_direct",
           "type": "udp",
-          "server": "119.29.29.29",
-          "detour": "直连"
+          "server": "119.29.29.29"
         },
         {
           "tag": "dns_proxy",
