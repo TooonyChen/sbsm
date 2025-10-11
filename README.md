@@ -10,22 +10,21 @@ SBSM delivers a lightweight admin console and Cloudflare Worker that manage Sing
    cd worker
    npm install
    cp wrangler.toml.example wrangler.toml   # fill in account_id, d1 database_id/bindings
-   wrangler secret put ADMIN_USERNAME
-   wrangler secret put ADMIN_PASSWORD_HASH  # bcrypt hash recommended
+   # set up wrangler.toml
    npm run migrate                          # applies migrations to the bound D1 database
    ```
 3. Deploy to Cloudflare:
    ```bash
    npm run deploy
    ```
-4. Provision the dashboard on Cloudflare Pages or another static host:
+4. Provision the dashboard on Cloudflare Pages or another static host (if you want to self-host the front-end):
    ```bash
    cd ../frontend
    npm install
    npm run build
    npm run export                           # outputs static assets under out/
    ```
-   Upload `out/` to your hosting platform and configure environment variables for the Worker endpoint and admin credentials as needed.
+   Upload `out/` to your hosting platform.
 5. Verify the deployment by browsing to the hosted dashboard, authenticating with your configured username/password, and connecting to the newly deployed Worker URL.
 
 ## Project Architecture
@@ -35,13 +34,12 @@ SBSM delivers a lightweight admin console and Cloudflare Worker that manage Sing
 - `docs/` — Design notes, frontend guidance, and operational walkthroughs.
 
 ## Screenshots
-After running both services, capture dashboard screenshots (e.g., group overview, config detail) and store them under `docs/screenshots/`. Reference them here with Markdown, for example:
 ```markdown
 ![Dashboard overview](docs/screenshots/dashboard.png)
 ```
 
 ## Acknowledgements
 - [SagerNet / sing-box](https://github.com/SagerNet/sing-box) for the core proxy tooling.
-- [Sub-Store](https://github.com/sub-store-org/Sub-Store) for informing early design decisions and user experience.
+- [Sub-Store](https://github.com/sub-store-org/Sub-Store) for giving me the idea to create this project.
 - Cloudflare Workers and D1 for the edge runtime and database.
-- Next.js, Radix UI, and Tailwind CSS for powering the dashboard experience.
+- Next.js, shadcn/ui, and Tailwind CSS for powering the dashboard experience.
