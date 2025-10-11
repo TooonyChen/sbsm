@@ -247,6 +247,8 @@ function vlessToOutbound(parsed: ParsedVlessLink, tag: string): Outbound {
   const pbk = params.get('pbk') ?? params.get('publicKey') ?? undefined;
   const sid = params.get('sid') ?? params.get('shortId') ?? undefined;
   const spx = params.get('spx') ?? undefined;
+  const packetEncoding =
+    params.get('packetEncoding') ?? params.get('packet_encoding') ?? params.get('packetencoding') ?? undefined;
 
   const outbound: Outbound = {
     tag,
@@ -271,6 +273,7 @@ function vlessToOutbound(parsed: ParsedVlessLink, tag: string): Outbound {
         enabled: true,
         public_key: pbk,
         short_id: sid,
+        spider_x: spx,
       });
       tls.utls = dropUndefined({
         enabled: !!fp,
@@ -329,10 +332,11 @@ function vlessToOutbound(parsed: ParsedVlessLink, tag: string): Outbound {
       break;
     }
     default:
-      if (spx) {
-        outbound.packet_encoding = spx;
-      }
       break;
+  }
+
+  if (packetEncoding) {
+    outbound.packet_encoding = packetEncoding;
   }
 
   return outbound;

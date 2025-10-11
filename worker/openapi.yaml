@@ -1,0 +1,753 @@
+openapi: 3.1.0
+info:
+  title: Sing Box Subscription Manager API
+  version: 0.1.0
+  description: >
+    Admin-facing Cloudflare Worker that manages VPN links, groups, base sing-box
+    templates, and rendered configurations. Most endpoints require HTTP Basic
+    authentication with the administrator credentials defined in Wrangler
+    environment variables.
+servers:
+  - url: https://your-worker.example.com
+    description: Deployed Worker
+  - url: http://localhost:8787
+    description: Wrangler dev server
+security:
+  - BasicAuth: []
+paths:
+  /verify:
+    get:
+      summary: Validate administrator credentials
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Basic Auth succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  username:
+                    type: string
+                required:
+                  - status
+                  - username
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/links:
+    get:
+      summary: List stored VPN links
+      description: Returns links ordered by creation time (descending).
+      responses:
+        '200':
+          description: List of VPN links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VpnLink'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a VPN link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VpnLinkCreate'
+      responses:
+        '201':
+          description: Link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VpnLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/links/{linkId}:
+    delete:
+      summary: Delete a VPN link
+      parameters:
+        - $ref: '#/components/parameters/LinkId'
+      responses:
+        '200':
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/groups:
+    get:
+      summary: List VPN groups
+      responses:
+        '200':
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VpnGroup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a VPN group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VpnGroupCreate'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VpnGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/groups/{groupId}/links:
+    post:
+      summary: Add links to a group
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                linkIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required:
+                - linkIds
+      responses:
+        '200':
+          description: Links added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/groups/{groupId}/links/{linkId}:
+    delete:
+      summary: Remove a link from a group
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/LinkId'
+      responses:
+        '200':
+          description: Link removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/base-configs:
+    get:
+      summary: List base configs
+      responses:
+        '200':
+          description: List of base configuration templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BaseConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a base config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseConfigCreate'
+      responses:
+        '201':
+          description: Base config created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/base-configs/{baseConfigId}:
+    get:
+      summary: Fetch a base config
+      parameters:
+        - $ref: '#/components/parameters/BaseConfigId'
+      responses:
+        '200':
+          description: Base config document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      summary: Update a base config
+      parameters:
+        - $ref: '#/components/parameters/BaseConfigId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseConfigUpdate'
+      responses:
+        '200':
+          description: Updated base config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      summary: Delete a base config
+      parameters:
+        - $ref: '#/components/parameters/BaseConfigId'
+      responses:
+        '200':
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Base config still referenced by a rendered config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/configs:
+    get:
+      summary: List rendered configs
+      responses:
+        '200':
+          description: List of config summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create a rendered config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigCreate'
+      responses:
+        '201':
+          description: Config created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/configs/{configId}/groups:
+    post:
+      summary: Attach a group to a config
+      parameters:
+        - $ref: '#/components/parameters/ConfigId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                groupId:
+                  type: string
+                  format: uuid
+                position:
+                  type: integer
+                  minimum: 0
+              required:
+                - groupId
+      responses:
+        '200':
+          description: Attachment succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/configs/{configId}/groups/{groupId}:
+    delete:
+      summary: Detach a group from a config
+      parameters:
+        - $ref: '#/components/parameters/ConfigId'
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Detachment succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/configs/{configId}/share:
+    post:
+      summary: Configure sharing for a rendered config
+      parameters:
+        - $ref: '#/components/parameters/ConfigId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shareEnabled:
+                  type: boolean
+                  description: Enable or disable sharing for this config.
+                shareToken:
+                  type: string
+                  description: Optional explicit share token (UUID recommended).
+                regenerate:
+                  type: boolean
+                  description: Regenerate a new random share token.
+      responses:
+        '200':
+          description: Share settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shareEnabled:
+                    type: boolean
+                  shareToken:
+                    type: string
+                    nullable: true
+                required:
+                  - shareEnabled
+                  - shareToken
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/config:
+    get:
+      summary: Render a full sing-box config
+      description: >
+        Returns the base template merged with all outbounds generated from the
+        config's attached groups. Provide either Basic Auth or a valid share
+        token.
+      security:
+        - BasicAuth: []
+        - {}
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Identifier of the rendered config.
+        - in: query
+          name: share
+          required: false
+          schema:
+            type: string
+          description: >
+            Share token when accessing without Basic Auth
+            (`/api/config?config_id=<uuid>&share=<token>`).
+      responses:
+        '200':
+          description: Complete sing-box configuration document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SingBoxDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    LinkId:
+      name: linkId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BaseConfigId:
+      name: baseConfigId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConfigId:
+      name: configId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Share token rejected
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Malformed request payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Missing required field or invalid value
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required:
+        - error
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+      required:
+        - success
+    VpnLink:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        raw_link:
+          type: string
+          description: Original subscription link URL
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds)
+        updated_at:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds)
+      required:
+        - id
+        - name
+        - raw_link
+        - created_at
+        - updated_at
+    VpnLinkCreate:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Raw VPN subscription link (vless://, ss://, etc.)
+        name:
+          type: string
+          description: Optional display name; auto-derived when omitted.
+      required:
+        - url
+    VpnGroup:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+      required:
+        - id
+        - name
+        - created_at
+        - updated_at
+    VpnGroupCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        linkIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Optional list of link IDs to attach during creation.
+      required:
+        - name
+    BaseConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        selector_tags:
+          type: array
+          items:
+            type: string
+        config:
+          $ref: '#/components/schemas/SingBoxDocument'
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+      required:
+        - id
+        - name
+        - selector_tags
+        - config
+        - created_at
+        - updated_at
+    BaseConfigCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        configJson:
+          $ref: '#/components/schemas/SingBoxDocument'
+        selectorTags:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+    BaseConfigUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        configJson:
+          $ref: '#/components/schemas/SingBoxDocument'
+        selectorTags:
+          type: array
+          items:
+            type: string
+    ConfigSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        base_config_id:
+          type: string
+          format: uuid
+        base_config_name:
+          type: string
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        selector_tags:
+          type: array
+          items:
+            type: string
+        share_enabled:
+          type: boolean
+        share_token:
+          type: string
+          nullable: true
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+      required:
+        - id
+        - base_config_id
+        - name
+        - selector_tags
+        - share_enabled
+        - created_at
+        - updated_at
+    ConfigCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        baseConfigId:
+          type: string
+          format: uuid
+        selectorTags:
+          type: array
+          items:
+            type: string
+        groupIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        shareEnabled:
+          type: boolean
+        shareToken:
+          type: string
+      required:
+        - name
+        - baseConfigId
+    SingBoxDocument:
+      type: object
+      additionalProperties: true
+      description: >
+        JSON representation of a sing-box configuration. The schema is left
+        intentionally open to support custom fields and future format changes.

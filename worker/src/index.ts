@@ -4,6 +4,7 @@ import { linkRoutes } from './routes/links';
 import { groupRoutes } from './routes/groups';
 import { baseConfigRoutes } from './routes/base-configs';
 import { configRoutes } from './routes/configs';
+import { verifyRoutes } from './routes/verify';
 
 const routes: RouteDefinition[] = [
   {
@@ -23,6 +24,7 @@ const routes: RouteDefinition[] = [
   ...groupRoutes,
   ...baseConfigRoutes,
   ...configRoutes,
+  ...verifyRoutes,
 ];
 
 export default {
