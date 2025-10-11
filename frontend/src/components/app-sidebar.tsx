@@ -1,5 +1,6 @@
 "use client";
 
+import { Github } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -84,19 +85,16 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="px-4 pb-4 text-xs text-muted-foreground">
-        <p className="leading-tight">
-          Need help? Visit{" "}
-          <a
-            href="https://github.com/SagerNet/sing-box"
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium underline-offset-4 hover:underline"
-          >
-            sing-box docs
-          </a>
-          .
-        </p>
+      <SidebarFooter className="px-4 pb-4">
+        <a
+          href="https://github.com/TooonyChen/sbsm"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Open the SBSM GitHub repository"
+        >
+          <Github className="size-5" strokeWidth={1.75} />
+        </a>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
