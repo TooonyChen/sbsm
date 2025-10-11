@@ -6,6 +6,8 @@ node_modules/
 npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.pnp/
+.pnp.*
 
 # Wrangler state
 .wrangler/
@@ -22,7 +24,21 @@ cache.db
 .env
 .env.*
 
-
 # Build caches
 dist/
 .cache/
+.next/
+out/
+build/
+
+# Test & coverage output
+coverage/
+
+# Framework artifacts
+next-env.d.ts
+*.tsbuildinfo
+.vercel/
+
+# Misc
+*.pem
+.yarn/
