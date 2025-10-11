@@ -1,3 +1,5 @@
+<p align="right">English | <a href="/README_CN.md">简体中文</a></p>
+
 # <p align="center">SBSM</p>
 
 ### <p align="center"><b>Sing-box Subscription Manager</b></p>
