@@ -249,9 +249,17 @@ export default function ConfigsPage() {
 
   function openShareDialog(config: ConfigSummary) {
     setShareTarget(config);
-    setShareEnabled(config.share_enabled);
-    setShareToken(config.share_token ?? "");
   }
+
+  useEffect(() => {
+    if (shareTarget) {
+      setShareEnabled(shareTarget.share_enabled);
+      setShareToken(shareTarget.share_token ?? "");
+    } else {
+      setShareEnabled(false);
+      setShareToken("");
+    }
+  }, [shareTarget]);
 
   function openEditDialog(config: ConfigSummary) {
     setEditTarget(config);
@@ -393,10 +401,33 @@ export default function ConfigsPage() {
     const trimmedHost = host.replace(/\/+$/, "");
     const url = new URL(`/api/config`, trimmedHost);
     url.searchParams.set("config_id", config.id);
-    const actualToken = token ?? config.share_token;
+    const actualToken = (token ?? config.share_token)?.trim();
     if (actualToken) url.searchParams.set("share", actualToken);
     return url.toString();
   }
+
+  function buildSubscriptionShareUrl(config: ConfigSummary, token?: string | null) {
+    if (!host) return "";
+    const trimmedHost = host.replace(/\/+$/, "");
+    const url = new URL(`/api/sub`, trimmedHost);
+    url.searchParams.set("config_id", config.id);
+    const actualToken = (token ?? config.share_token)?.trim();
+    if (actualToken) {
+      url.searchParams.set("share", actualToken);
+    }
+    return url.toString();
+  }
+
+  const normalizedShareToken = (shareToken || shareTarget?.share_token || "").trim();
+
+  const shareConfigUrl =
+    shareTarget && shareEnabled && normalizedShareToken
+      ? buildShareUrl(shareTarget, normalizedShareToken)
+      : "";
+  const shareSubscriptionUrl =
+    shareTarget && shareEnabled && normalizedShareToken
+      ? buildSubscriptionShareUrl(shareTarget, normalizedShareToken)
+      : "";
 
   return (
     <div className="flex flex-1 flex-col">
@@ -759,25 +790,66 @@ export default function ConfigsPage() {
                 </div>
               </div>
               {shareEnabled && (
-                <div className="grid gap-2">
-                  <Label htmlFor="share-token">Share token</Label>
-                  <Input
-                    id="share-token"
-                    value={shareToken}
-                    onChange={(event) => setShareToken(event.target.value)}
-                  />
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="share-token">Share token</Label>
+                    <Input
+                      id="share-token"
+                      value={shareToken}
+                      onChange={(event) => setShareToken(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="share-config-link">Config JSON link</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          id="share-config-link"
+                          value={shareConfigUrl}
+                          readOnly
+                          placeholder={host ? "" : "Set host to generate links"}
+                          className="sm:flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!shareTarget || !normalizedShareToken) return;
+                            const url = buildShareUrl(shareTarget, normalizedShareToken);
+                            if (url) navigator.clipboard?.writeText(url);
+                          }}
+                          disabled={!shareTarget || !shareConfigUrl}
+                        >
+                          Copy config link
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="share-subscription-link">Subscription link</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          id="share-subscription-link"
+                          value={shareSubscriptionUrl}
+                          readOnly
+                          placeholder={host ? "" : "Set host to generate links"}
+                          className="sm:flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!shareTarget || !normalizedShareToken) return;
+                            const url = buildSubscriptionShareUrl(shareTarget, normalizedShareToken);
+                            if (url) navigator.clipboard?.writeText(url);
+                          }}
+                          disabled={!shareTarget || !shareSubscriptionUrl}
+                        >
+                          Copy subscription link
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const url = buildShareUrl(shareTarget, shareToken);
-                        if (url) navigator.clipboard.writeText(url);
-                      }}
-                      disabled={!host}
-                    >
-                      Copy link
-                    </Button>
                     <Button
                       type="button"
                       variant="outline"

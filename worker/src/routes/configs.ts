@@ -149,6 +149,38 @@ function formatConfigRow(row: SbConfigRow & { base_config_name: string | null; g
   };
 }
 
+async function collectConfigLinks(env: Env, configId: string): Promise<VpnLinkRow[]> {
+  const groupRows = await fetchConfigGroups(env, configId);
+  if (groupRows.length === 0) {
+    return [];
+  }
+
+  const aggregated: VpnLinkRow[] = [];
+  for (const row of groupRows) {
+    const group = await fetchGroupById(env, row.group_id);
+    if (!group) continue;
+
+    if (group.type === 'subscription') {
+      const { links } = await resolveSubscriptionLinks(env, group.id);
+      aggregated.push(...links);
+      continue;
+    }
+
+    const { results } = await env.DB.prepare<VpnLinkRow>(
+      `SELECT l.id, l.name, l.raw_link, l.created_at, l.updated_at
+         FROM vpn_links l
+         INNER JOIN vpn_group_links gl ON gl.link_id = l.id
+         WHERE gl.group_id = ?
+         ORDER BY l.created_at ASC`,
+    )
+      .bind(row.group_id)
+      .all();
+    aggregated.push(...results);
+  }
+
+  return aggregated;
+}
+
 async function handleListConfigs(
   request: Request,
   env: Env,
@@ -536,34 +568,7 @@ async function handleGetConfig(
     overrideSelectorTags.length > 0 ? overrideSelectorTags : baseSelectorTags;
   const renderConfig = parseBaseConfig(baseConfigRow.config_json);
 
-  const groupRows = await fetchConfigGroups(env, configId);
-  if (groupRows.length === 0) {
-    return jsonResponse(renderConfig);
-  }
-
-  const allLinks: VpnLinkRow[] = [];
-  for (const row of groupRows) {
-    const group = await fetchGroupById(env, row.group_id);
-    if (!group) continue;
-
-    if (group.type === 'subscription') {
-      const { links } = await resolveSubscriptionLinks(env, group.id);
-      allLinks.push(...links);
-      continue;
-    }
-
-    const { results: links } = await env.DB.prepare(
-      `SELECT l.id, l.name, l.raw_link, l.created_at, l.updated_at
-         FROM vpn_links l
-         INNER JOIN vpn_group_links gl ON gl.link_id = l.id
-         WHERE gl.group_id = ?
-         ORDER BY l.created_at ASC`,
-    )
-      .bind(row.group_id)
-      .all();
-    allLinks.push(...links);
-  }
-
+  const allLinks = await collectConfigLinks(env, configId);
   if (allLinks.length === 0) {
     return jsonResponse(renderConfig);
   }
@@ -572,6 +577,57 @@ async function handleGetConfig(
   mergeGeneratedOutbounds(renderConfig, outbounds, selectorTags);
   stripUnsupportedOutboundFields(renderConfig);
   return jsonResponse(renderConfig);
+}
+
+async function handleConfigSubscriptionShare(
+  request: Request,
+  env: Env,
+  _params: Record<string, string>,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const configId = url.searchParams.get('config_id')?.trim();
+  if (!configId) {
+    return errorResponse('`config_id` query parameter is required', 422);
+  }
+
+  const config = await fetchConfigById(env, configId);
+  if (!config || !config.share_enabled || !config.share_token) {
+    return errorResponse('Config not found', 404);
+  }
+
+  const providedToken =
+    url.searchParams.get('share')?.trim() ??
+    url.searchParams.get('shareuuid')?.trim() ??
+    url.searchParams.get('token')?.trim() ??
+    '';
+  if (!providedToken) {
+    return errorResponse('Missing share token', 422);
+  }
+
+  if (providedToken !== config.share_token) {
+    return errorResponse('Invalid share token', 403);
+  }
+
+  const links = await collectConfigLinks(env, configId);
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const link of links) {
+    const trimmed = link.raw_link.trim();
+    if (!trimmed.length) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    lines.push(trimmed);
+  }
+
+  const body = lines.join('\n');
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'cache-control': 'no-store',
+      ...CORS_HEADERS,
+    },
+  });
 }
 
 export const configRoutes: RouteDefinition[] = [
@@ -614,5 +670,10 @@ export const configRoutes: RouteDefinition[] = [
     method: 'GET',
     pattern: new URLPattern({ pathname: '/api/config' }),
     handler: handleGetConfig,
+  },
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/sub' }),
+    handler: handleConfigSubscriptionShare,
   },
 ];
